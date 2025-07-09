@@ -65,7 +65,7 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
                 $title = 'BÁO CÁO TỔNG HỢP CHẤM CÔNG: ' . ($employee['name'] ?? 'N/A');
                 $data = getEmployeeSummaryForExport($exportEmployeeId, $startDate, $endDate);
             }
-            $headers = ['STT', 'Mã NV', 'Tên NV', 'Chức Vụ', 'Ngày Làm Việc', 'Tổng Giờ', 'Ngày Hoàn Thành', 'Ngày Nửa Công', 'Ngày Thiếu', 'TB Giờ/Ngày', 'Tỷ Lệ Hoàn Thành (%)', 'Tỷ Lệ Chuyên Cần (%)'];
+            $headers = ['STT', 'Mã NV', 'Tên NV', 'Chức Vụ', 'Ngày Làm Việc', 'Tổng Giờ', 'Ngày Hoàn Thành', 'Ngày Nửa Công', 'Ngày Thiếu', 'Nghỉ Phép', 'Nghỉ Có Công', 'Nghỉ Không Công', 'Nghỉ Không Lý Do', 'TB Giờ/Ngày', 'Tỷ Lệ Hoàn Thành (%)', 'Tỷ Lệ Chuyên Cần (%)'];
         } else {
             // Định dạng chi tiết
             if ($exportType === 'all') {
@@ -93,7 +93,7 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
         // Logo/Header chính - dòng 1
         $sheet->setCellValue('A1', $title);
         if ($exportFormat === 'summary') {
-            $lastCol = 'L'; // 12 cột cho format tổng hợp
+            $lastCol = 'P'; // 16 cột cho format tổng hợp (thêm 4 cột mới)
         } else {
             $lastCol = ($exportType === 'all') ? 'J' : 'I'; // Format chi tiết
         }
@@ -134,6 +134,10 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
                 $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['complete_days'] ?? 0));
                 $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['half_days'] ?? 0));
                 $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['incomplete_days'] ?? 0));
+                $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['nghi_phep_days'] ?? 0));
+                $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['nghi_co_cong_days'] ?? 0));
+                $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['nghi_khong_cong_days'] ?? 0));
+                $sheet->setCellValueByColumnAndRow($col++, $row, intval($record['nghi_khong_ly_do_days'] ?? 0));
                 $sheet->setCellValueByColumnAndRow($col++, $row, round(floatval($record['avg_hours_per_day'] ?? 0), 2));
                 $sheet->setCellValueByColumnAndRow($col++, $row, round(floatval($record['completion_rate'] ?? 0), 2));
                 $sheet->setCellValueByColumnAndRow($col++, $row, round(floatval($record['attendance_rate'] ?? 0), 2));
@@ -244,10 +248,10 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
         // 5. Style đặc biệt cho các cột quan trọng
         if ($exportFormat === 'summary') {
             // Style cho format tổng hợp
-            // Tô màu cho cột tỷ lệ hoàn thành (K) và tỷ lệ chuyên cần (L)
+            // Tô màu cho cột tỷ lệ hoàn thành (O) và tỷ lệ chuyên cần (P)
             for ($i = 6; $i <= $lastRow; $i++) {
                 // Tỷ lệ hoàn thành
-                $completionRate = $sheet->getCell('K' . $i)->getValue();
+                $completionRate = $sheet->getCell('O' . $i)->getValue();
                 $completionColor = '000000';
                 if ($completionRate >= 90) {
                     $completionColor = '28A745'; // Xanh lá
@@ -257,7 +261,7 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
                     $completionColor = 'DC3545'; // Đỏ
                 }
                 
-                $sheet->getStyle('K' . $i)->applyFromArray([
+                $sheet->getStyle('O' . $i)->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'color' => ['rgb' => $completionColor]
@@ -265,7 +269,7 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
                 ]);
                 
                 // Tỷ lệ chuyên cần
-                $attendanceRate = $sheet->getCell('L' . $i)->getValue();
+                $attendanceRate = $sheet->getCell('P' . $i)->getValue();
                 $attendanceColor = '000000';
                 if ($attendanceRate >= 95) {
                     $attendanceColor = '28A745'; // Xanh lá
@@ -275,7 +279,7 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
                     $attendanceColor = 'DC3545'; // Đỏ
                 }
                 
-                $sheet->getStyle('L' . $i)->applyFromArray([
+                $sheet->getStyle('P' . $i)->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'color' => ['rgb' => $attendanceColor]
@@ -293,8 +297,14 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
                     $statusColor = '28A745'; // Xanh lá
                 } elseif ($status === 'Nửa ngày') {
                     $statusColor = 'FFC107'; // Vàng
-                } elseif ($status === 'Thiếu') {
+                } elseif ($status === 'Nghỉ không công') {
                     $statusColor = 'DC3545'; // Đỏ
+                } elseif ($status === 'Nghỉ phép') {
+                    $statusColor = '17A2B8'; // Xanh dương (info)
+                } elseif ($status === 'Nghỉ có công') {
+                    $statusColor = '007BFF'; // Xanh (primary)
+                } elseif ($status === 'Nghỉ không lý do') {
+                    $statusColor = '343A40'; // Đen (dark)
                 }
                 
                 $sheet->getStyle($statusCol . $i)->applyFromArray([
@@ -320,7 +330,7 @@ if (isset($_POST['export']) && isset($_POST['start_date']) && isset($_POST['end_
         
         if ($exportFormat === 'summary') {
             // Căn giữa các cột số trong format tổng hợp
-            $sheet->getStyle('E6:L' . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('E6:P' . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         } else {
             // Căn giữa cột số giờ trong format chi tiết
             if ($exportType === 'all') {
@@ -649,6 +659,8 @@ if (isset($_POST['preview']) && isset($_POST['start_date']) && isset($_POST['end
                                                 <th>Hoàn Thành</th>
                                                 <th>Nửa Công</th>
                                                 <th>Thiếu</th>
+                                                <th>Nghỉ Phép</th>
+                                                <th>Nghỉ Có Công</th>
                                                 <th>TL Hoàn Thành</th>
                                             <?php else: ?>
                                                 <?php if ($_POST['export_type'] === 'all'): ?>
@@ -673,6 +685,8 @@ if (isset($_POST['preview']) && isset($_POST['start_date']) && isset($_POST['end
                                                     <td><small><?= $record['complete_days'] ?></small></td>
                                                     <td><small><?= $record['half_days'] ?></small></td>
                                                     <td><small><?= $record['incomplete_days'] ?></small></td>
+                                                    <td><small><?= $record['nghi_phep_days'] ?? 0 ?></small></td>
+                                                    <td><small><?= $record['nghi_co_cong_days'] ?? 0 ?></small></td>
                                                     <td>
                                                         <span class="badge <?= $record['completion_rate'] >= 90 ? 'bg-success' : ($record['completion_rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?> badge-sm">
                                                             <?= $record['completion_rate'] ?>%
@@ -696,7 +710,7 @@ if (isset($_POST['preview']) && isset($_POST['start_date']) && isset($_POST['end
                                         <?php endforeach; ?>
                                         <?php if (count($previewData) > 50): ?>
                                             <tr>
-                                                <td colspan="<?= $previewFormat === 'summary' ? 8 : ($_POST['export_type'] === 'all' ? 6 : 4) ?>" class="text-center text-muted">
+                                                <td colspan="<?= $previewFormat === 'summary' ? 10 : ($_POST['export_type'] === 'all' ? 6 : 4) ?>" class="text-center text-muted">
                                                     <small>... và <?= count($previewData) - 50 ?> bản ghi khác</small>
                                                 </td>
                                             </tr>
