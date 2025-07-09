@@ -342,6 +342,15 @@ function updateManualStatus($employeeId, $date, $status) {
             case 'half_day':
                 $totalHours = 4;
                 break;
+            case 'nghi_phep':
+                $totalHours = 8; // Nghỉ phép được tính công
+                break;
+            case 'nghi_co_cong':
+                $totalHours = 8; // Nghỉ có công
+                break;
+            case 'nghi_khong_cong':
+            case 'nghi_khong_ly_do':
+            case 'incomplete':
             default:
                 $totalHours = 0;
         }
@@ -470,10 +479,22 @@ function getMonthlyStats($employeeId, $month = null) {
     try {
         $sql = "SELECT 
                     COUNT(*) as total_days,
-                    SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END) as complete_days,
-                    SUM(CASE WHEN status = 'half_day' THEN 0.5 WHEN status = 'complete' THEN 1 ELSE 0 END) as work_units,
-                    SUM(total_hours) as total_hours,
-                    AVG(total_hours) as avg_hours
+                    SUM(CASE WHEN status IN ('complete', 'nghi_co_cong', 'nghi_phep') THEN 1 ELSE 0 END) as complete_days,
+                    SUM(CASE 
+                        WHEN status IN ('complete', 'nghi_co_cong', 'nghi_phep') THEN 1 
+                        WHEN status = 'half_day' THEN 0.5 
+                        ELSE 0 
+                    END) as work_units,
+                    SUM(CASE 
+                        WHEN status IN ('complete', 'half_day') THEN total_hours 
+                        WHEN status IN ('nghi_co_cong', 'nghi_phep') THEN 8
+                        ELSE 0 
+                    END) as total_hours,
+                    AVG(CASE 
+                        WHEN status IN ('complete', 'half_day') THEN total_hours 
+                        WHEN status IN ('nghi_co_cong', 'nghi_phep') THEN 8
+                        ELSE 0 
+                    END) as avg_hours
                 FROM attendance 
                 WHERE employee_id = ? AND DATE_FORMAT(date, '%Y-%m') = ?";
         
@@ -674,7 +695,11 @@ function getStatusText($status) {
     switch ($status) {
         case 'complete': return '1 công';
         case 'half_day': return 'Nửa ngày';
-        case 'incomplete': return 'Thiếu';
+        case 'incomplete': return 'Nghỉ không công';
+        case 'nghi_phep': return 'Nghỉ phép';
+        case 'nghi_co_cong': return 'Nghỉ có công';
+        case 'nghi_khong_cong': return 'Nghỉ không công';
+        case 'nghi_khong_ly_do': return 'Nghỉ không lý do';
         default: return 'Chưa xác định';
     }
 }
@@ -687,6 +712,10 @@ function getStatusClass($status) {
         case 'complete': return 'success';
         case 'half_day': return 'warning';
         case 'incomplete': return 'danger';
+        case 'nghi_phep': return 'info';
+        case 'nghi_co_cong': return 'primary';
+        case 'nghi_khong_cong': return 'danger';
+        case 'nghi_khong_ly_do': return 'dark';
         default: return 'secondary';
     }
 }
@@ -722,9 +751,13 @@ function getEmployeesSummaryForExport($startDate, $endDate) {
                     e.position,
                     COUNT(a.date) as total_work_days,
                     COALESCE(SUM(a.total_hours), 0) as total_hours,
-                    COALESCE(SUM(CASE WHEN a.status = 'complete' THEN 1 ELSE 0 END), 0) as complete_days,
+                    COALESCE(SUM(CASE WHEN a.status IN ('complete', 'nghi_co_cong', 'nghi_phep') THEN 1 ELSE 0 END), 0) as complete_days,
                     COALESCE(SUM(CASE WHEN a.status = 'half_day' THEN 1 ELSE 0 END), 0) as half_days,
-                    COALESCE(SUM(CASE WHEN a.status = 'incomplete' THEN 1 ELSE 0 END), 0) as incomplete_days,
+                    COALESCE(SUM(CASE WHEN a.status IN ('incomplete', 'nghi_khong_cong', 'nghi_khong_ly_do') THEN 1 ELSE 0 END), 0) as incomplete_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_phep' THEN 1 ELSE 0 END), 0) as nghi_phep_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_co_cong' THEN 1 ELSE 0 END), 0) as nghi_co_cong_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_khong_cong' THEN 1 ELSE 0 END), 0) as nghi_khong_cong_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_khong_ly_do' THEN 1 ELSE 0 END), 0) as nghi_khong_ly_do_days,
                     COALESCE(AVG(a.total_hours), 0) as avg_hours_per_day,
                     MIN(a.date) as first_work_date,
                     MAX(a.date) as last_work_date
@@ -792,9 +825,13 @@ function getEmployeeSummaryForExport($employeeId, $startDate, $endDate) {
                     e.position,
                     COUNT(a.date) as total_work_days,
                     COALESCE(SUM(a.total_hours), 0) as total_hours,
-                    COALESCE(SUM(CASE WHEN a.status = 'complete' THEN 1 ELSE 0 END), 0) as complete_days,
+                    COALESCE(SUM(CASE WHEN a.status IN ('complete', 'nghi_co_cong', 'nghi_phep') THEN 1 ELSE 0 END), 0) as complete_days,
                     COALESCE(SUM(CASE WHEN a.status = 'half_day' THEN 1 ELSE 0 END), 0) as half_days,
-                    COALESCE(SUM(CASE WHEN a.status = 'incomplete' THEN 1 ELSE 0 END), 0) as incomplete_days,
+                    COALESCE(SUM(CASE WHEN a.status IN ('incomplete', 'nghi_khong_cong', 'nghi_khong_ly_do') THEN 1 ELSE 0 END), 0) as incomplete_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_phep' THEN 1 ELSE 0 END), 0) as nghi_phep_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_co_cong' THEN 1 ELSE 0 END), 0) as nghi_co_cong_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_khong_cong' THEN 1 ELSE 0 END), 0) as nghi_khong_cong_days,
+                    COALESCE(SUM(CASE WHEN a.status = 'nghi_khong_ly_do' THEN 1 ELSE 0 END), 0) as nghi_khong_ly_do_days,
                     COALESCE(AVG(a.total_hours), 0) as avg_hours_per_day,
                     MIN(a.date) as first_work_date,
                     MAX(a.date) as last_work_date

@@ -66,7 +66,7 @@ try {
             checkin_note TEXT NULL,
             checkout_note TEXT NULL,
             total_hours DECIMAL(4,2) DEFAULT 0,
-            status ENUM('incomplete', 'complete', 'half_day') DEFAULT 'incomplete',
+            status ENUM('incomplete', 'complete', 'half_day', 'nghi_phep', 'nghi_khong_cong', 'nghi_co_cong', 'nghi_khong_ly_do') DEFAULT 'incomplete',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
@@ -197,6 +197,14 @@ try {
         $pdo->exec("ALTER TABLE attendance ADD FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE");
         $pdo->exec("ALTER TABLE attendance DROP INDEX unique_date");
         $pdo->exec("ALTER TABLE attendance ADD UNIQUE KEY unique_employee_date (employee_id, date)");
+    }
+    
+    // Cập nhật ENUM status để có thêm các trạng thái mới
+    try {
+        $pdo->exec("ALTER TABLE attendance MODIFY COLUMN status ENUM('incomplete', 'complete', 'half_day', 'nghi_phep', 'nghi_khong_cong', 'nghi_co_cong', 'nghi_khong_ly_do') DEFAULT 'incomplete'");
+    } catch (Exception $e) {
+        // Nếu lỗi, có thể enum đã được cập nhật
+        error_log("Status enum update: " . $e->getMessage());
     }
     
     // Thêm foreign key constraint cho users.employee_id nếu chưa có

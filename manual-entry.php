@@ -447,7 +447,11 @@ $firstDayOfWeek = date('N', strtotime("$currentYear-$currentMonth-01"));
                                         <option value="auto">Tự động tính</option>
                                         <option value="complete">1 công</option>
                                         <option value="half_day">Nửa ngày</option>
-                                        <option value="incomplete">Nghỉ</option>
+                                        <option value="incomplete">Nghỉ không công</option>
+                                        <option value="nghi_phep">Nghỉ phép</option>
+                                        <option value="nghi_co_cong">Nghỉ có công</option>
+                                        <option value="nghi_khong_cong">Nghỉ không công</option>
+                                        <option value="nghi_khong_ly_do">Nghỉ không lý do</option>
                                     </select>
                                 </div>
                             </div>
