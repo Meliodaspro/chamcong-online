@@ -1,4 +1,4 @@
-# �� Hệ Thống Chấm Công Authentication 
+# 🏢 Hệ Thống Chấm Công Authentication 
 
 Hệ thống chấm công đa người dùng với authentication và phân quyền hoàn chỉnh.
 
@@ -112,7 +112,7 @@ Hệ thống chấm công đa người dùng với authentication và phân quy�
 1. **Copy files vào web directory:**
 ```bash
 cp -r * /Applications/XAMPP/htdocs/cham-cong/
-chmod -R 755 /Applications/XAMPP/htdocs/cham-cong/
+chmod -R 755 /Applications/XAMPP/xamppfiles/htdocs/cham-cong/
 ```
 
 2. **Truy cập:**
@@ -163,6 +163,21 @@ http://localhost/cham-cong
 - **File access control** với .htaccess
 - **Session hijacking protection**
 
+## 🌐 **Repository GitHub**
+
+📍 **Live Repository**: [https://github.com/Meliodaspro/chamcong-online.git](https://github.com/Meliodaspro/chamcong-online.git)
+
+### **Clone Repository:**
+```bash
+git clone https://github.com/Meliodaspro/chamcong-online.git
+cd chamcong-online
+```
+
+### **Cập nhật từ GitHub:**
+```bash
+git pull origin main
+```
+
 ## 📞 **Hỗ Trợ**
 
 Hệ thống này được thiết kế để:
@@ -172,3 +187,8 @@ Hệ thống này được thiết kế để:
 - ✅ **Responsive** trên mọi thiết bị
 
 **🎉 Hệ thống đã sẵn sàng sử dụng ngay!** 
+
+---
+
+**💻 Developed by: Nguyễn Hồng Sơn**  
+📧 Contact: [GitHub Profile](https://github.com/Meliodaspro) 
