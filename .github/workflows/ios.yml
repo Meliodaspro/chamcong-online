@@ -36,7 +36,7 @@ jobs:
           ARTIFACT_PATH: ${{ runner.temp }}/ios-artifacts
         run: |
           test -f "$APP_PATH/Runner"
-          lipo -verify_arch arm64 "$APP_PATH/Runner"
+          lipo "$APP_PATH/Runner" -verify_arch arm64
           mkdir -p "$PACKAGE_PATH/Payload" "$ARTIFACT_PATH"
           ditto "$APP_PATH" "$PACKAGE_PATH/Payload/Runner.app"
           ditto -c -k --keepParent "$PACKAGE_PATH/Payload" "$ARTIFACT_PATH/ChamCong-unsigned.ipa"
