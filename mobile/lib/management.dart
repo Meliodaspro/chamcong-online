@@ -6,6 +6,8 @@ import 'package:share_plus/share_plus.dart' show Share;
 import 'package:cross_file/cross_file.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models.dart';
+import 'design.dart';
+import 'accounts.dart';
 import 'main.dart' show HomePage, ErrorNotice;
 
 final db = Supabase.instance.client;
@@ -42,6 +44,8 @@ class AdminPage extends StatefulWidget {
 }
 class _AdminPageState extends State<AdminPage> {
  int tab=0; bool busy=false; String? error; String search=''; String? employee;
+ String staffFilter='all', attendanceFilter='all',requestFilter='pending';
+ List<Map<String,dynamic>> todayRows=[];
  DateTime month=DateTime(vietnamTime(DateTime.now()).year,vietnamTime(DateTime.now()).month);
  List<Map<String,dynamic>> people=[], rows=[], requests=[], audit=[];
  @override void initState(){super.initState();load();}
@@ -64,14 +68,15 @@ class _AdminPageState extends State<AdminPage> {
    if(await db.rpc('is_admin')!=true) throw Exception('ADMIN_REQUIRED');
    final p=await allRows('profiles','id');
    final r=await allRows('attendance_sessions','id',start:monthKey(month),end:monthKey(DateTime(month.year,month.month+1)));
-   final req=await db.from('correction_requests').select().eq('status','pending').order('created_at');
+   final req=await db.from('correction_requests').select().order('created_at',ascending:false).limit(100);
+   final today=await db.from('attendance_sessions').select().eq('work_date',dateKey(DateTime.now())).order('check_in',ascending:false);
    final a=await db.from('admin_audit').select().order('id',ascending:false).limit(100);
-   if(mounted)setState((){people=p;rows=r;requests=req;audit=a;});
+   if(mounted)setState((){people=p;rows=r;requests=req;audit=a;todayRows=today;});
   }catch(e){if(mounted)setState((){error=managementError(e);people=[];rows=[];requests=[];audit=[];});}
   finally{if(mounted)setState(()=>busy=false);}
  }
  String name(dynamic id)=>people.where((p)=>p['id']==id).map((p)=>p['display_name'] as String).firstOrNull??'Nhân viên';
- List<Map<String,dynamic>> get filtered=>rows.where((r)=>employee==null||r['user_id']==employee).toList();
+ List<Map<String,dynamic>> get filtered=>rows.where((r)=>(employee==null||r['user_id']==employee)&&(attendanceFilter=='all'||(r['check_out']!=null)==(attendanceFilter=='complete'))).toList()..sort((a,b)=>(b['work_date'] as String).compareTo(a['work_date'] as String));
  Future<void> act(Future<void> Function() fn) async {
   if(busy)return; setState((){busy=true;error=null;});
   try{await fn();}catch(e){if(mounted)setState(()=>error=managementError(e));}
@@ -82,7 +87,7 @@ class _AdminPageState extends State<AdminPage> {
   final c=<String>[p['display_name']??'',p['employee_code']??'',p['phone']??'',p['position']??''];
   var active=p['is_active'] as bool; var role=p['role'] as String;
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update)=>AlertDialog(title:const Text('Thông tin nhân viên'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-   for(var i=0;i<c.length;i++) Padding(padding:const EdgeInsets.only(bottom:12),child:TextFormField(initialValue:c[i],onChanged:(v)=>c[i]=v,decoration:InputDecoration(labelText:['Họ tên','Mã nhân viên','Điện thoại','Chức vụ'][i]))),
+   for(var i=0;i<c.length;i++) Padding(padding:const EdgeInsets.only(bottom:12),child:TextFormField(readOnly:i==1,initialValue:c[i],onChanged:(v)=>c[i]=v,decoration:InputDecoration(labelText:['Họ tên','Mã nhân viên','Điện thoại','Chức vụ'][i]))),
    DropdownButtonFormField<String>(initialValue:role,items:const [DropdownMenuItem(value:'employee',child:Text('Nhân viên')),DropdownMenuItem(value:'admin',child:Text('Admin'))],onChanged:(v)=>update(()=>role=v!)),
    SwitchListTile(title:const Text('Đang hoạt động'),value:active,onChanged:(v)=>update(()=>active=v)),
   ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Hủy')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Lưu'))])));
@@ -93,51 +98,67 @@ class _AdminPageState extends State<AdminPage> {
   final box=context.findRenderObject() as RenderBox?;
   await Share.shareXFiles([XFile.fromData(Uint8List.fromList(utf8.encode('\uFEFF$csv')),mimeType:'text/csv',name:'bang-cong-${monthKey(month)}.csv')],sharePositionOrigin:box==null?null:box.localToGlobal(Offset.zero)&box.size);
  }
- @override Widget build(BuildContext context){
-  final completed=filtered.where((r)=>r['check_out']!=null).map(Attendance.fromJson).fold(Duration.zero,(Duration s,r)=>s+r.completedDuration);
-  final today=dateKey(DateTime.now());
-  return Scaffold(appBar:AppBar(title:const Text('Quản trị Chấm Công'),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh),tooltip:'Tải lại'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>const HomePage())),icon:const Icon(Icons.fingerprint),tooltip:'Công cá nhân'),IconButton(onPressed:busy?null:()=>db.auth.signOut(scope:SignOutScope.local),icon:const Icon(Icons.logout),tooltip:'Đăng xuất')]),
-   bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'Tổng quan'),NavigationDestination(icon:Icon(Icons.people_outline),label:'Nhân viên'),NavigationDestination(icon:Icon(Icons.table_chart_outlined),label:'Bảng công'),NavigationDestination(icon:Icon(Icons.fact_check_outlined),label:'Duyệt công')]),
-   body:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(20),children:[
-    if(busy)const LinearProgressIndicator(),if(error!=null)ErrorNotice(error!),
-    if(tab==0)...[
-     Text('Không gian quản lý',style:Theme.of(context).textTheme.headlineMedium),const Text('Nhân viên • Chấm công • Báo cáo',style:TextStyle(color:Colors.white60)),const SizedBox(height:20),
-     Wrap(spacing:12,runSpacing:12,children:[stat('Nhân viên hoạt động','${people.where((p)=>p['is_active']==true).length}',Icons.people),stat('Ca trong tháng','${rows.length}',Icons.calendar_month),stat('Chờ duyệt','${requests.length}',Icons.pending_actions),stat('Giờ hoàn tất',durationLabel(completed),Icons.schedule)]),
-     const SizedBox(height:20),const Text('TRẠNG THÁI HÔM NAY'),
-     if(!rows.any((r)=>r['work_date']==today))const Padding(padding:EdgeInsets.all(16),child:Text('Không có công hôm nay trong tháng đang chọn.')),
-     for(final r in rows.where((r)=>r['work_date']==today))attendanceTile(r),
-     const SizedBox(height:20),const Text('LỊCH SỬ QUẢN TRỊ · 100 thay đổi gần nhất'),
-     for(final a in audit)Card(child:ListTile(leading:const Icon(Icons.history),onTap:()=>showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Chi tiết thay đổi'),content:SingleChildScrollView(child:SelectableText(const JsonEncoder.withIndent('  ').convert({'Trước':a['before_value'],'Sau':a['after_value']}))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Đóng'))])),title:Text('${name(a['actor_id'])} · ${auditLabel(a['action'])}'),subtitle:Text('${name(a['target_id'])}\n${a['reason']??''}\n${vietnamTime(DateTime.parse(a['created_at'])).toString().substring(0,16)}'))),
-    ],
-    if(tab==1)...[
-     TextField(decoration:const InputDecoration(labelText:'Tìm tên / mã nhân viên',prefixIcon:Icon(Icons.search)),onChanged:(v)=>setState(()=>search=v.toLowerCase())),const SizedBox(height:12),
-     Card(child:ListTile(leading:const Icon(Icons.person_add_alt),title:const Text('Cấp tài khoản mới'),subtitle:const Text('Tạo email/mật khẩu trong Supabase → Authentication → Users. Tải lại để sửa thông tin và cấp quyền tại đây. Không xóa tài khoản có dữ liệu công; hãy khóa tài khoản.'))),
-     for(final p in people.where((p)=>'${p['display_name']} ${p['employee_code']??''}'.toLowerCase().contains(search)))Card(child:ListTile(leading:CircleAvatar(child:Icon(p['role']=='admin'?Icons.admin_panel_settings:Icons.person_outline)),title:Text(p['display_name']),subtitle:Text('${p['employee_code']??'Chưa có mã'} · ${p['role']=='admin'?'Admin':'Nhân viên'}\n${p['is_active']==true?'Hoạt động':'Đã khóa'} · ${p['position']}'),trailing:const Icon(Icons.edit_outlined),onTap:busy?null:()=>editPerson(p))),
-    ],
-    if(tab==2)...[
-     Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[IconButton(onPressed:busy?null:()=>move(-1),icon:const Icon(Icons.chevron_left)),Text('Tháng ${month.month}/${month.year}'),IconButton(onPressed:busy?null:()=>move(1),icon:const Icon(Icons.chevron_right))]),
-     DropdownButtonFormField<String>(initialValue:employee,decoration:const InputDecoration(labelText:'Nhân viên'),items:[const DropdownMenuItem<String>(value:null,child:Text('Tất cả nhân viên')),for(final p in people)DropdownMenuItem(value:p['id'] as String,child:Text(p['display_name']))],onChanged:busy?null:(v)=>setState(()=>employee=v)),
-     Padding(padding:const EdgeInsets.symmetric(vertical:16),child:Text('${filtered.length} ca · ${durationLabel(completed)} đã hoàn tất')),
-     Wrap(spacing:12,children:[FilledButton.icon(onPressed:busy?null:()=>export().catchError((Object e){if(mounted)setState(()=>error=managementError(e));}),icon:const Icon(Icons.ios_share),label:const Text('Xuất CSV / Excel')),OutlinedButton.icon(onPressed:busy?null:()=>editAttendance(context,people:people,onSave:load),icon:const Icon(Icons.edit_calendar),label:const Text('Nhập / sửa công'))]),
-     if(filtered.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('Chưa có dữ liệu.')),
-     for(final r in filtered)attendanceTile(r),
-    ],
-    if(tab==3)...[
-     Text('Yêu cầu sửa công',style:Theme.of(context).textTheme.headlineSmall),
-     if(requests.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('Không có yêu cầu chờ duyệt.')),
-     for(final r in requests)Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${name(r['user_id'])} · ${r['work_date']}'),Text('${clockLabel(DateTime.parse(r['check_in']))} → ${clockLabel(r['check_out']==null?null:DateTime.parse(r['check_out']))}'),Text(r['reason']),Row(children:[TextButton(onPressed:busy?null:()=>review(r,false),child:const Text('Từ chối')),FilledButton(onPressed:busy?null:()=>review(r,true),child:const Text('Duyệt'))])]))),
-    ],
-   ])));
+ @override Widget build(BuildContext context)=>Scaffold(
+ appBar:AppBar(title:Text(['Tổng quan','Nhân viên','Bảng công','Phê duyệt'][tab]),actions:[IconButton(onPressed:busy?null:load,tooltip:'Tải lại',icon:const Icon(Icons.refresh_rounded)),PopupMenuButton<String>(onSelected:(v){if(v=='personal'){Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>const HomePage()));}else if(v=='password'){Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>const PasswordPage()));}else if(v=='audit'){showAudit();}else{db.auth.signOut(scope:SignOutScope.local);}},itemBuilder:(_)=>const [PopupMenuItem(value:'personal',child:Text('Chấm công cá nhân')),PopupMenuItem(value:'password',child:Text('Đổi mật khẩu')),PopupMenuItem(value:'audit',child:Text('Lịch sử quản trị')),PopupMenuItem(value:'logout',child:Text('Đăng xuất'))])]),
+ bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'Tổng quan'),NavigationDestination(icon:Icon(Icons.people_outline_rounded),label:'Nhân viên'),NavigationDestination(icon:Icon(Icons.calendar_month_outlined),label:'Bảng công'),NavigationDestination(icon:Icon(Icons.task_alt_rounded),label:'Phê duyệt')]),
+ floatingActionButton:tab==1?FloatingActionButton.extended(onPressed:busy?null:()=>createAccount(),backgroundColor:brand,foregroundColor:Colors.white,icon:const Icon(Icons.add),label:const Text('Thêm nhân viên')):null,
+ body:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(20,12,20,100),children:[
+ if(busy)const LinearProgressIndicator(),if(error!=null)ErrorNotice(error!),
+ if(tab==0)...dashboard(),if(tab==1)...employees(),if(tab==2)...reports(),if(tab==3)...approvals(),
+ ])));
+ List<Widget> dashboard(){
+ final completed=rows.where((r)=>r['check_out']!=null).map(Attendance.fromJson).fold(Duration.zero,(Duration s,r)=>s+r.completedDuration);
+ final pending=requests.where((r)=>r['status']=='pending').length;
+ return [
+ DashboardBanner(title:'Một ngày làm việc tốt!',subtitle:'${shortDate(dateKey(DateTime.now()))} · Không gian quản lý nhân sự'),const SizedBox(height:18),
+ MetricGrid(items:[(label:'Nhân sự hoạt động',value:'${people.where((p)=>p['is_active']==true).length}',icon:Icons.people_outline,color:brand),(label:'Đang trong ca',value:'${todayRows.where((r)=>r['check_out']==null).length}',icon:Icons.timelapse_rounded,color:const Color(0xFF12805C)),(label:'Chờ phê duyệt',value:'$pending',icon:Icons.fact_check_outlined,color:const Color(0xFFB77813)),(label:'Giờ tháng ${month.month}',value:compactHours(completed),icon:Icons.schedule_rounded,color:const Color(0xFF7C52CC))]),
+ const SectionTitle('Thao tác nhanh'),Wrap(spacing:10,runSpacing:10,children:[FilledButton.icon(onPressed:busy?null:()=>createAccount(),icon:const Icon(Icons.person_add_alt),label:const Text('Thêm nhân viên')),OutlinedButton.icon(onPressed:()=>setState(()=>tab=2),icon:const Icon(Icons.insert_chart_outlined),label:const Text('Xem báo cáo'))]),
+ SectionTitle('Chấm công hôm nay',action:Text('${todayRows.length} người',style:const TextStyle(color:textMuted,fontSize:12))),
+ if(todayRows.isEmpty)const EmptyPanel('Chưa có ai chấm công hôm nay.'),
+ for(final r in todayRows)attendanceTile(r),
+ SectionTitle('Nhật ký gần đây',action:TextButton(onPressed:showAudit,child:const Text('Xem tất cả'))),
+ if(audit.isEmpty)const EmptyPanel('Các thay đổi quản trị sẽ xuất hiện tại đây.'),
+ for(final a in audit.take(3))auditTile(a),
+ ];
  }
+ List<Widget> employees()=>[
+ Text('${people.length} thành viên',style:Theme.of(context).textTheme.headlineSmall),const SizedBox(height:6),const Text('Quản lý tài khoản, thông tin và quyền truy cập.',style:TextStyle(color:textMuted)),const SizedBox(height:20),
+ TextField(decoration:const InputDecoration(hintText:'Tìm tên hoặc mã nhân viên',prefixIcon:Icon(Icons.search)),onChanged:(v)=>setState(()=>search=v.toLowerCase())),const SizedBox(height:12),
+ Wrap(spacing:8,children:[for(final v in ['all','active','inactive'])ChoiceChip(label:Text(switch(v){'active'=>'Đang hoạt động','inactive'=>'Đã khóa',_=>'Tất cả'}),selected:staffFilter==v,onSelected:(_)=>setState(()=>staffFilter=v))]),const SizedBox(height:12),
+ for(final p in people.where((p)=>'${p['display_name']} ${p['employee_code']??''}'.toLowerCase().contains(search)&&(staffFilter=='all'||p['is_active']==(staffFilter=='active'))))Card(child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[CircleAvatar(radius:23,backgroundColor:const Color(0xFFEAF0FF),child:Text((p['display_name'] as String).isEmpty?'N':(p['display_name'] as String).characters.first.toUpperCase(),style:const TextStyle(color:brand,fontWeight:FontWeight.bold))),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(p['display_name'],style:const TextStyle(fontWeight:FontWeight.w800,fontSize:15)),const SizedBox(height:4),Text('${p['employee_code']??'Chưa cấp mã'} · ${p['role']=='admin'?'Quản trị viên':'Nhân viên'}',style:const TextStyle(fontSize:12,color:textMuted)),const SizedBox(height:7),StatusPill(p['is_active']==true?'Hoạt động':'Đã khóa',color:p['is_active']==true?const Color(0xFF12805C):const Color(0xFFCA4556))])),PopupMenuButton<String>(enabled:!busy,onSelected:(v){if(v=='edit'){editPerson(p);}else{resetPassword(p);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Thông tin & quyền')),if(p['role']=='employee')const PopupMenuItem(value:'password',child:Text('Đặt lại mật khẩu'))])]))),
+ ];
+ List<Widget> reports(){
+ final done=filtered.where((r)=>r['check_out']!=null).map(Attendance.fromJson).fold(Duration.zero,(Duration s,r)=>s+r.completedDuration);
+ return [
+ Card(child:Padding(padding:const EdgeInsets.all(14),child:Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[IconButton(onPressed:busy?null:()=>move(-1),icon:const Icon(Icons.chevron_left)),Text('Tháng ${two(month.month)} / ${month.year}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:17)),IconButton(onPressed:busy?null:()=>move(1),icon:const Icon(Icons.chevron_right))]))),const SizedBox(height:12),
+ DropdownButtonFormField<String>(initialValue:employee,isExpanded:true,decoration:const InputDecoration(labelText:'Lọc nhân viên'),items:[const DropdownMenuItem<String>(value:null,child:Text('Tất cả nhân viên')),for(final p in people)DropdownMenuItem(value:p['id'] as String,child:Text('${p['employee_code']??''} · ${p['display_name']}',overflow:TextOverflow.ellipsis))],onChanged:busy?null:(v)=>setState(()=>employee=v)),const SizedBox(height:12),
+ Wrap(spacing:8,children:[for(final v in ['all','complete','open'])ChoiceChip(label:Text(switch(v){'complete'=>'Đã hoàn tất','open'=>'Thiếu giờ ra',_=>'Tất cả công'}),selected:attendanceFilter==v,onSelected:(_)=>setState(()=>attendanceFilter=v))]),
+ const SizedBox(height:18),MetricGrid(items:[(label:'Ca đang xem',value:'${filtered.length}',icon:Icons.event_available_outlined,color:brand),(label:'Giờ đã hoàn tất',value:compactHours(done),icon:Icons.schedule,color:const Color(0xFF12805C))]),const SizedBox(height:16),
+ Wrap(spacing:8,runSpacing:8,children:[FilledButton.icon(onPressed:busy?null:()=>export().catchError((Object e){if(mounted)setState(()=>error=managementError(e));}),icon:const Icon(Icons.ios_share),label:const Text('Xuất báo cáo')),OutlinedButton.icon(onPressed:busy?null:()=>editAttendance(context,people:people,onSave:load),icon:const Icon(Icons.edit_calendar),label:const Text('Nhập công'))]),
+ const SectionTitle('Chi tiết bảng công'),if(filtered.isEmpty)const EmptyPanel('Không có công phù hợp với bộ lọc.'),for(final r in filtered)attendanceTile(r),
+ ];
+ }
+ List<Widget> approvals()=>[
+ Text('Yêu cầu điều chỉnh',style:Theme.of(context).textTheme.headlineSmall),const SizedBox(height:6),const Text('Kiểm tra thời gian và lý do trước khi duyệt.',style:TextStyle(color:textMuted)),const SizedBox(height:16),
+ Wrap(spacing:8,children:[for(final v in ['pending','approved','rejected','all'])ChoiceChip(label:Text(v=='all'?'Tất cả':requestLabel(v)),selected:requestFilter==v,onSelected:(_)=>setState(()=>requestFilter=v))]),const SizedBox(height:12),
+ if(!requests.any((r)=>requestFilter=='all'||r['status']==requestFilter))const EmptyPanel('Không có yêu cầu trong mục này.'),
+ for(final r in requests.where((r)=>requestFilter=='all'||r['status']==requestFilter))Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text(name(r['user_id']),style:const TextStyle(fontWeight:FontWeight.w800))),StatusPill(requestLabel(r['status']),color:requestColor(r['status']))]),const SizedBox(height:12),Text('${shortDate(r['work_date'])} · ${clockLabel(DateTime.parse(r['check_in']))} → ${clockLabel(r['check_out']==null?null:DateTime.parse(r['check_out']))}',style:const TextStyle(fontWeight:FontWeight.w600)),const SizedBox(height:8),Text(r['reason'],style:const TextStyle(color:textMuted)),if(r['status']=='pending')...[
+ const Divider(height:28),Row(children:[Expanded(child:OutlinedButton(onPressed:busy?null:()=>review(r,false),child:const Text('Từ chối'))),const SizedBox(width:12),Expanded(child:FilledButton(onPressed:busy?null:()=>review(r,true),child:const Text('Duyệt công')))]),
+ ]]))),const Padding(padding:EdgeInsets.only(top:16),child:Text('Hiển thị 100 yêu cầu gần nhất.',style:TextStyle(color:textMuted,fontSize:12))),
+ ];
+ Future<void> createAccount()async{final saved=await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>const AccountPage()));if(saved==true&&mounted)await load();}
+ Future<void> resetPassword(Map<String,dynamic> p)async{await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>AccountPage(employee:p)));if(mounted)await load();}
+ void showAudit(){Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>Scaffold(appBar:AppBar(title:const Text('Lịch sử quản trị')),body:ListView(padding:const EdgeInsets.all(20),children:[const Text('100 thay đổi gần nhất',style:TextStyle(color:textMuted)),for(final a in audit)auditTile(a)]))));}
+ Widget auditTile(Map<String,dynamic> a)=>Card(child:ListTile(leading:const CircleAvatar(backgroundColor:Color(0xFFF0F4FB),child:Icon(Icons.history_rounded,color:brand)),onTap:()=>showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Chi tiết thay đổi'),content:SingleChildScrollView(child:SelectableText(const JsonEncoder.withIndent('  ').convert({'Trước':a['before_value'],'Sau':a['after_value']}))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Đóng'))])),title:Text(auditLabel(a['action']),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:14)),subtitle:Text('${name(a['target_id'])} · ${name(a['actor_id'])}\n${vietnamTime(DateTime.parse(a['created_at'])).toString().substring(0,16)}',style:const TextStyle(color:textMuted,fontSize:12)),trailing:const Icon(Icons.chevron_right,size:18)));
  void move(int d){setState(()=>month=DateTime(month.year,month.month+d));load();}
  Future<void> review(Map<String,dynamic> r,bool yes) async {
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(yes?'Duyệt sửa công?':'Từ chối yêu cầu?'),content:Text('${name(r['user_id'])} · ${r['work_date']}\n${r['reason']}'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Hủy')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Xác nhận'))]));
   if(ok==true)await act(()async{await db.rpc('review_correction',params:{'p_id':r['id'],'p_approve':yes});});
  }
- Widget attendanceTile(Map<String,dynamic> r){final a=Attendance.fromJson(r);return Card(child:ListTile(title:Text('${name(r['user_id'])} · ${a.workDate}'),subtitle:Text('${clockLabel(a.checkIn)} → ${clockLabel(a.checkOut)}'),trailing:Text(a.checkOut==null?'Đang làm':durationLabel(a.completedDuration)),onTap:busy?null:()=>editAttendance(context,people:people,record:r,onSave:load)));}
- Widget stat(String label,String value,IconData icon)=>SizedBox(width:155,child:Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(icon,color:Colors.tealAccent),const SizedBox(height:12),Text(value,style:const TextStyle(fontSize:24,fontWeight:FontWeight.bold)),Text(label)]))));
+ Widget attendanceTile(Map<String,dynamic> r){final a=Attendance.fromJson(r);return Card(child:InkWell(borderRadius:BorderRadius.circular(20),onTap:busy?null:()=>editAttendance(context,people:people,record:r,onSave:load),child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text(name(r['user_id']),style:const TextStyle(fontWeight:FontWeight.w800))),StatusPill(a.checkOut==null?'Chưa ra ca':durationLabel(a.completedDuration),color:a.checkOut==null?const Color(0xFFB77813):const Color(0xFF12805C))]),const SizedBox(height:8),Row(children:[const Icon(Icons.calendar_today_outlined,size:14,color:textMuted),const SizedBox(width:6),Text(shortDate(a.workDate),style:const TextStyle(color:textMuted,fontSize:12)),const Spacer(),Text('${clockLabel(a.checkIn)} → ${clockLabel(a.checkOut)}',style:const TextStyle(fontWeight:FontWeight.w700,fontSize:13))])]))));}
+
 }
-String auditLabel(dynamic s)=>switch(s){'employee_update'=>'Sửa nhân viên','attendance_update'=>'Sửa công','request_review'=>'Duyệt yêu cầu',_=>'Thay đổi'};
+String auditLabel(dynamic s)=>switch(s){'employee_update'=>'Sửa nhân viên','attendance_update'=>'Sửa công','request_review'=>'Duyệt yêu cầu','employee_create'=>'Tạo tài khoản','password_reset'=>'Đặt lại mật khẩu',_=>'Thay đổi'};
 String csvCell(Object? value){var s='${value??''}';if(RegExp(r'^[\s]*[=+@-]').hasMatch(s))s="'$s";return '"${s.replaceAll('"','""')}"';}
 String reportCsv(List<Map<String,dynamic>> rows,Map<String,String> names)=>[
  ['Nhân viên','Ngày','Giờ vào (VN)','Giờ ra (VN)','Phút làm','Trạng thái'].map(csvCell).join(','),
@@ -162,6 +183,16 @@ class _AttendanceEditorState extends State<AttendanceEditor>{
  reason=TextEditingController();
  }
  @override void dispose(){date.dispose();cin.dispose();cout.dispose();reason.dispose();super.dispose();}
+ Future<void> pickDate()async{
+  final initial=DateTime.tryParse(date.text)??DateTime.now();
+  final value=await showDatePicker(context:context,initialDate:initial,firstDate:DateTime(2000),lastDate:DateTime(2100));
+  if(value!=null&&mounted)setState(()=>date.text='${value.year}-${two(value.month)}-${two(value.day)}');
+ }
+ Future<void> pickTime(TextEditingController c)async{
+  final parts=c.text.split(':');
+  final value=await showTimePicker(context:context,initialTime:TimeOfDay(hour:parts.length==2?int.tryParse(parts[0])??8:8,minute:parts.length==2?int.tryParse(parts[1])??0:0));
+  if(value!=null&&mounted)setState(()=>c.text='${two(value.hour)}:${two(value.minute)}');
+ }
  Future<void> save() async {
   setState((){busy=true;error=null;});
   try{
@@ -176,9 +207,9 @@ class _AttendanceEditorState extends State<AttendanceEditor>{
  }
  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.request?'Yêu cầu sửa công':'Nhập / sửa công')),body:ListView(padding:const EdgeInsets.all(20),children:[
  if(!widget.request)DropdownButtonFormField<String>(initialValue:user.isEmpty?null:user,decoration:const InputDecoration(labelText:'Nhân viên'),items:[for(final p in widget.people)DropdownMenuItem(value:p['id'] as String,child:Text(p['display_name']))],onChanged:busy?null:(v)=>setState(()=>user=v!)),
- const SizedBox(height:16),TextField(controller:date,enabled:!busy,decoration:const InputDecoration(labelText:'Ngày bắt đầu (YYYY-MM-DD)')),
- const SizedBox(height:16),TextField(controller:cin,enabled:!busy,decoration:const InputDecoration(labelText:'Giờ vào (HH:mm)')),
- const SizedBox(height:16),TextField(controller:cout,enabled:!busy,decoration:const InputDecoration(labelText:'Giờ ra (HH:mm), bỏ trống nếu chưa ra')),
+ const SizedBox(height:16),TextField(controller:date,enabled:!busy,readOnly:true,onTap:pickDate,decoration:const InputDecoration(labelText:'Ngày bắt đầu (YYYY-MM-DD)')),
+ const SizedBox(height:16),TextField(controller:cin,enabled:!busy,readOnly:true,onTap:()=>pickTime(cin),decoration:const InputDecoration(labelText:'Giờ vào (HH:mm)')),
+ const SizedBox(height:16),TextField(controller:cout,enabled:!busy,readOnly:true,onTap:()=>pickTime(cout),decoration:InputDecoration(labelText:'Giờ ra (bỏ trống nếu chưa ra)',suffixIcon:IconButton(onPressed:busy?null:()=>setState(()=>cout.clear()),icon:const Icon(Icons.clear)))),
  const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('Giờ Việt Nam. Giờ ra nhỏ hơn giờ vào được hiểu là ngày hôm sau. Thay đổi giờ không tự trừ giờ nghỉ.')),
  TextField(controller:reason,enabled:!busy,maxLength:1000,maxLines:3,decoration:const InputDecoration(labelText:'Lý do chỉnh sửa')),
  if(error!=null)ErrorNotice(error!),FilledButton(onPressed:busy?null:save,child:Text(busy?'Đang lưu…':widget.request?'Gửi quản lý duyệt':'Lưu thay đổi')),

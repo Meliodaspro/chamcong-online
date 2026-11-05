@@ -7,9 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models.dart';
 import 'storage.dart';
 import 'management.dart';
+import 'design.dart';
+import 'accounts.dart';
 
 const ink = Color(0xFF101C30);
-const teal = Color(0xFF12BFA4);
+const teal = brand;
 String projectHost = '';
 const defaultProjectUrl = 'https://dakfmywklmcynwavpepu.supabase.co';
 // Client key is public. Row-level security protects employee data.
@@ -94,14 +96,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Chấm Công',
-    theme: ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(seedColor: teal, brightness: Brightness.dark),
-      scaffoldBackgroundColor: const Color(0xFF091220),
-      inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-      cardTheme: const CardThemeData(color: ink, elevation: 0),
-    ),
+    theme: appTheme(),
     home: _loading ? const Scaffold(body: Center(child: CircularProgressIndicator()))
       : !_ready ? SetupPage(onConnect: _connect, initialError: _error)
       : const AuthGate(),
@@ -151,7 +146,7 @@ class _SetupPageState extends State<SetupPage> {
         if (_error ?? widget.initialError case final String message) ErrorNotice(message),
         FilledButton(onPressed: _busy ? null : _save, child: Text(_busy ? 'Đang kết nối…' : 'Lưu và tiếp tục')),
         const SizedBox(height: 16),
-        const Text('Chưa có dự án? Tạo tại supabase.com, chạy schema.sql và tạo tài khoản đăng nhập theo hướng dẫn đi kèm.', style: TextStyle(color: Colors.white60)),
+        const Text('Chưa có dự án? Tạo tại supabase.com, chạy schema.sql và tạo tài khoản đăng nhập theo hướng dẫn đi kèm.', style: TextStyle(color: textMuted)),
       ],
     )),
   ))));
@@ -209,7 +204,7 @@ class _LoginPageState extends State<LoginPage> {
       const SizedBox(height: 28),
       Text('Chấm Công', style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold)),
       const SizedBox(height: 8),
-      const Text('Một ngày làm việc, ghi nhận rõ ràng.', style: TextStyle(color: Colors.white60)),
+      const Text('Một ngày làm việc, ghi nhận rõ ràng.', style: TextStyle(color: textMuted)),
       const SizedBox(height: 36),
       TextField(controller: _email, enabled: !_busy, keyboardType: TextInputType.emailAddress,
         autofillHints: const [AutofillHints.username], autocorrect: false,
@@ -225,7 +220,7 @@ class _LoginPageState extends State<LoginPage> {
       FilledButton(onPressed: _busy ? null : _login,
         child: Padding(padding: const EdgeInsets.all(12), child: Text(_busy ? 'Đang đăng nhập…' : 'Đăng nhập'))),
       const SizedBox(height: 24),
-      const Text('Tài khoản do quản lý cấp. Nếu quên mật khẩu, liên hệ quản lý để đặt lại.', style: TextStyle(color: Colors.white60)),
+      const Text('Tài khoản do quản lý cấp. Nếu quên mật khẩu, liên hệ quản lý để đặt lại.', style: TextStyle(color: textMuted)),
       const SizedBox(height: 12),
       TextButton(onPressed: _busy ? null : () => showDialog<void>(context: context, builder: (context) => AlertDialog(
         title: const Text('Đổi nơi làm việc'),
@@ -347,6 +342,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final data = _data;
     return Scaffold(
       appBar: AppBar(title: const Text('Chấm Công'), actions: [
+        IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const PasswordPage())), tooltip: 'Đổi mật khẩu', icon: const Icon(Icons.manage_accounts_outlined)),
         IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const RequestsPage())), tooltip: 'Yêu cầu sửa công', icon: const Icon(Icons.edit_calendar)),
         IconButton(onPressed: _busy || _loading ? null : _load, tooltip: 'Tải lại', icon: const Icon(Icons.refresh)),
         IconButton(onPressed: _busy ? null : _logout, tooltip: 'Đăng xuất', icon: const Icon(Icons.logout)),
@@ -368,16 +364,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ]))),
           if (data != null && _tab == 0) ...[
             const SizedBox(height: 16),
-            Text('Xin chào, ${data.name}', style: Theme.of(context).textTheme.headlineSmall),
+            DashboardBanner(title: 'Xin chào, ${data.name}', subtitle: 'Ghi nhận ngày làm việc của bạn. Đồng bộ trực tuyến, giờ Việt Nam.'),
             const SizedBox(height: 8),
-            Text('Ngày ${data.today.split('-').reversed.join('/')} · Giờ Việt Nam', style: const TextStyle(color: Colors.white60)),
+            Text('Ngày ${data.today.split('-').reversed.join('/')} · Giờ Việt Nam', style: const TextStyle(color: textMuted)),
             const SizedBox(height: 24),
             _todayCard(data),
             const SizedBox(height: 24),
             const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.verified_user_outlined, color: teal),
               title: Text('Đồng bộ trực tuyến'), subtitle: Text('Chỉ báo thành công khi server đã ghi nhận. Mỗi ngày một ca; hỗ trợ ra ca qua đêm.')),
             const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.info_outline),
-              title: Text('Chấm Công 0.2'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, gửi yêu cầu sửa công qua biểu tượng lịch ở trên.')),
+              title: Text('Chấm Công 0.3'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, gửi yêu cầu sửa công qua biểu tượng lịch ở trên.')),
           ],
           if (data != null && _tab == 1) ...[
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -386,7 +382,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               IconButton(onPressed: _busy || _loading ? null : () => _moveMonth(1), icon: const Icon(Icons.chevron_right), tooltip: 'Tháng sau'),
             ]),
             Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('TỔNG GIỜ ĐÃ HOÀN TẤT', style: TextStyle(color: Colors.white60)),
+              const Text('TỔNG GIỜ ĐÃ HOÀN TẤT', style: TextStyle(color: textMuted)),
               const SizedBox(height: 10),
               Text(durationLabel(data.total), style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: teal)),
               Text('${data.completedDays} ca hoàn tất · Chưa trừ giờ nghỉ'),
@@ -400,7 +396,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               trailing: Text(row.checkOut == null ? 'Chưa ra ca' : durationLabel(row.completedDuration)),
             )),
             const SizedBox(height: 12),
-            const Text('Ca qua đêm được tính vào ngày bắt đầu ca. Tổng giờ chỉ cộng ca đã có giờ ra.', style: TextStyle(color: Colors.white60)),
+            const Text('Ca qua đêm được tính vào ngày bắt đầu ca. Tổng giờ chỉ cộng ca đã có giờ ra.', style: TextStyle(color: textMuted)),
           ],
           if (!_loading && data == null) OutlinedButton(onPressed: _busy ? null : _load, child: const Text('Thử tải lại')),
         ],
