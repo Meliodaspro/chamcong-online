@@ -243,7 +243,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _busy = false;
   int _tab = 0;
   int _generation = 0;
-  String get _pendingKey => 'pending:${projectHost}:${_client.auth.currentUser!.id}';
+  String get _pendingKey => 'pending:$projectHost:${_client.auth.currentUser!.id}';
   @override
   void initState() {
     super.initState(); WidgetsBinding.instance.addObserver(this);
@@ -270,13 +270,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
       var raw = await _client.rpc('month_overview', params: {'p_month': monthKey(requested)});
-      var data = Overview.fromJson(Map<String, dynamic>.from(raw as Map));
+      var data = Overview.fromJson(Map<String, dynamic>.from(raw));
       if (initial) {
         final server = vietnamTime(data.serverTime);
         final actual = DateTime(server.year, server.month);
         if (monthKey(actual) != monthKey(requested)) {
           raw = await _client.rpc('month_overview', params: {'p_month': monthKey(actual)});
-          data = Overview.fromJson(Map<String, dynamic>.from(raw as Map));
+          data = Overview.fromJson(Map<String, dynamic>.from(raw));
         }
         if (mounted && generation == _generation) _month = actual;
       }
