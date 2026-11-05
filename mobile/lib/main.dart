@@ -163,8 +163,15 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = Supabase.instance.client.auth;
     return StreamBuilder<AuthState>(stream: auth.onAuthStateChange,
-      builder: (context, snapshot) => auth.currentSession == null
-        ? const LoginPage() : RoleGate(key: ValueKey(auth.currentUser!.id)),
+      builder: (context, snapshot) {
+        if (auth.currentSession == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+          });
+          return const LoginPage();
+        }
+        return RoleGate(key: ValueKey(auth.currentUser!.id));
+      },
     );
   }
 }

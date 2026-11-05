@@ -1,7 +1,8 @@
+// ignore_for_file: curly_braces_in_flow_control_structures
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:share_plus/share_plus.dart' show Share;
 import 'package:cross_file/cross_file.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models.dart';
@@ -78,15 +79,14 @@ class _AdminPageState extends State<AdminPage> {
   final message=error; await load(); if(mounted&&message!=null)setState(()=>error=message);
  }
  Future<void> editPerson(Map<String,dynamic> p) async {
-  final c=[TextEditingController(text:p['display_name']),TextEditingController(text:p['employee_code']),TextEditingController(text:p['phone']),TextEditingController(text:p['position'])];
+  final c=<String>[p['display_name']??'',p['employee_code']??'',p['phone']??'',p['position']??''];
   var active=p['is_active'] as bool; var role=p['role'] as String;
   final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update)=>AlertDialog(title:const Text('Thông tin nhân viên'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-   for(var i=0;i<c.length;i++) Padding(padding:const EdgeInsets.only(bottom:12),child:TextField(controller:c[i],decoration:InputDecoration(labelText:['Họ tên','Mã nhân viên','Điện thoại','Chức vụ'][i]))),
+   for(var i=0;i<c.length;i++) Padding(padding:const EdgeInsets.only(bottom:12),child:TextFormField(initialValue:c[i],onChanged:(v)=>c[i]=v,decoration:InputDecoration(labelText:['Họ tên','Mã nhân viên','Điện thoại','Chức vụ'][i]))),
    DropdownButtonFormField<String>(initialValue:role,items:const [DropdownMenuItem(value:'employee',child:Text('Nhân viên')),DropdownMenuItem(value:'admin',child:Text('Admin'))],onChanged:(v)=>update(()=>role=v!)),
    SwitchListTile(title:const Text('Đang hoạt động'),value:active,onChanged:(v)=>update(()=>active=v)),
   ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Hủy')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Lưu'))])));
-  if(ok==true)await act(()async{await db.rpc('update_employee',params:{'p_id':p['id'],'p_name':c[0].text,'p_code':c[1].text,'p_phone':c[2].text,'p_position':c[3].text,'p_active':active,'p_role':role});});
-  // Controllers live until the dialog route has finished its exit transition.
+  if(ok==true)await act(()async{await db.rpc('update_employee',params:{'p_id':p['id'],'p_name':c[0],'p_code':c[1],'p_phone':c[2],'p_position':c[3],'p_active':active,'p_role':role});});
  }
  Future<void> export() async {
   final csv=reportCsv(filtered, {for(final p in people) p['id'] as String:p['display_name'] as String});
@@ -107,7 +107,7 @@ class _AdminPageState extends State<AdminPage> {
      if(!rows.any((r)=>r['work_date']==today))const Padding(padding:EdgeInsets.all(16),child:Text('Không có công hôm nay trong tháng đang chọn.')),
      for(final r in rows.where((r)=>r['work_date']==today))attendanceTile(r),
      const SizedBox(height:20),const Text('LỊCH SỬ QUẢN TRỊ · 100 thay đổi gần nhất'),
-     for(final a in audit)Card(child:ListTile(leading:const Icon(Icons.history),title:Text('${name(a['actor_id'])} · ${auditLabel(a['action'])}'),subtitle:Text('${name(a['target_id'])}\n${a['reason']??''}\n${vietnamTime(DateTime.parse(a['created_at'])).toString().substring(0,16)}'))),
+     for(final a in audit)Card(child:ListTile(leading:const Icon(Icons.history),onTap:()=>showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Chi tiết thay đổi'),content:SingleChildScrollView(child:SelectableText(const JsonEncoder.withIndent('  ').convert({'Trước':a['before_value'],'Sau':a['after_value']}))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Đóng'))])),title:Text('${name(a['actor_id'])} · ${auditLabel(a['action'])}'),subtitle:Text('${name(a['target_id'])}\n${a['reason']??''}\n${vietnamTime(DateTime.parse(a['created_at'])).toString().substring(0,16)}'))),
     ],
     if(tab==1)...[
      TextField(decoration:const InputDecoration(labelText:'Tìm tên / mã nhân viên',prefixIcon:Icon(Icons.search)),onChanged:(v)=>setState(()=>search=v.toLowerCase())),const SizedBox(height:12),
