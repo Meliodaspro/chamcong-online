@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models.dart';
 import 'storage.dart';
+import 'management.dart';
 
 const ink = Color(0xFF101C30);
 const teal = Color(0xFF12BFA4);
@@ -163,7 +164,7 @@ class AuthGate extends StatelessWidget {
     final auth = Supabase.instance.client.auth;
     return StreamBuilder<AuthState>(stream: auth.onAuthStateChange,
       builder: (context, snapshot) => auth.currentSession == null
-        ? const LoginPage() : HomePage(key: ValueKey(auth.currentUser!.id)),
+        ? const LoginPage() : RoleGate(key: ValueKey(auth.currentUser!.id)),
     );
   }
 }
@@ -339,6 +340,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final data = _data;
     return Scaffold(
       appBar: AppBar(title: const Text('Chấm Công'), actions: [
+        IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const RequestsPage())), tooltip: 'Yêu cầu sửa công', icon: const Icon(Icons.edit_calendar)),
         IconButton(onPressed: _busy || _loading ? null : _load, tooltip: 'Tải lại', icon: const Icon(Icons.refresh)),
         IconButton(onPressed: _busy ? null : _logout, tooltip: 'Đăng xuất', icon: const Icon(Icons.logout)),
       ]),
@@ -368,7 +370,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.verified_user_outlined, color: teal),
               title: Text('Đồng bộ trực tuyến'), subtitle: Text('Chỉ báo thành công khi server đã ghi nhận. Mỗi ngày một ca; hỗ trợ ra ca qua đêm.')),
             const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.info_outline),
-              title: Text('Bản thử nghiệm 0.1'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, liên hệ quản lý.')),
+              title: Text('Chấm Công 0.2'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, gửi yêu cầu sửa công qua biểu tượng lịch ở trên.')),
           ],
           if (data != null && _tab == 1) ...[
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -432,3 +434,4 @@ class ErrorNotice extends StatelessWidget {
     child: Text(message, style: const TextStyle(color: Color(0xFFFFD18A))),
   );
 }
+
