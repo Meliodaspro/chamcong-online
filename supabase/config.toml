@@ -1,0 +1,3 @@
+# JWT is verified against Supabase Auth within the handler (supports signing keys).
+[functions.admin-employees]
+verify_jwt = false

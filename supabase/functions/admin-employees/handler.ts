@@ -1,0 +1,35 @@
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+const headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
+const response=(status:number,data:unknown)=>new Response(JSON.stringify(data),{status,headers});
+export function makeHandler(service:SupabaseClient) { return async(req:Request)=>{
+ if(req.method==='OPTIONS') return new Response('ok',{headers});
+ if(req.method!=='POST') return response(405,{error:'METHOD_NOT_ALLOWED'});
+ try {
+  const token=(req.headers.get('Authorization')??'').replace(/^Bearer\s+/i,'');
+  if(!token) return response(401,{error:'AUTH_REQUIRED'});
+  const {data:auth,error:authError}=await service.auth.getUser(token);
+  if(authError||!auth.user) return response(401,{error:'AUTH_REQUIRED'});
+  const {data:actor,error:actorError}=await service.from('profiles').select('id,role,is_active').eq('id',auth.user.id).single();
+  if(actorError||actor?.role!=='admin'||!actor.is_active) return response(403,{error:'ADMIN_REQUIRED'});
+  const body=await req.json();
+  if(!['create','reset_password'].includes(body.action)) return response(400,{error:'INVALID_ACTION'});
+  if(typeof body.password!=='string'||body.password.length<10||body.password.length>128) return response(400,{error:'PASSWORD_TOO_SHORT'});
+  if(body.action==='create') {
+   if(typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>100||typeof body.email!=='string'||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())) return response(400,{error:'INVALID_INPUT'});
+   const {data,error}=await service.auth.admin.createUser({email:body.email.trim().toLowerCase(),password:body.password,email_confirm:true,user_metadata:{display_name:body.name.trim()}});
+   if(error) return response(error.status===422?409:400,{error:error.code==='email_exists'?'EMAIL_EXISTS':'CREATE_FAILED'});
+   const {data:profile,error:profileError}=await service.from('profiles').select('id,employee_code,display_name').eq('id',data.user.id).single();
+   if(profileError) return response(500,{error:'PROFILE_READ_FAILED',created:true});
+   // Never store or log passwords, including in audit metadata.
+   const {error:auditError}=await service.from('admin_audit').insert({actor_id:actor.id,action:'employee_create',target_id:profile.id,after_value:profile});
+   return response(200,{employee:profile,audit_saved:!auditError});
+  }
+  if(typeof body.user_id!=='string') return response(400,{error:'INVALID_INPUT'});
+  const {data:target}=await service.from('profiles').select('id,role').eq('id',body.user_id).single();
+  if(!target||target.role!=='employee') return response(403,{error:'EMPLOYEE_ONLY'});
+  const {error}=await service.auth.admin.updateUserById(target.id,{password:body.password});
+  if(error) return response(400,{error:'RESET_FAILED'});
+  const {error:auditError}=await service.from('admin_audit').insert({actor_id:actor.id,action:'password_reset',target_id:target.id});
+  return response(200,{success:true,audit_saved:!auditError});
+ } catch { return response(500,{error:'SERVER_ERROR'}); }
+}; }

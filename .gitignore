@@ -44,3 +44,12 @@ login-debug.php
 *.htaccess.b
 fixed.htaccess
 redirect.htaccess 
+
+# Flutter Android
+.generated/
+.dart_tool/
+build/
+.env
+*.jks
+*.keystore
+key.properties
