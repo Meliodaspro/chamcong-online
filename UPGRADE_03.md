@@ -11,14 +11,14 @@
 
 ## Cập nhật Supabase một lần
 
-Dự án đã chạy schema.sql và 002_admin.sql: chỉ chạy supabase/migrations/003_employee_accounts.sql trong SQL Editor. Không chạy lại các file cũ. Giữ nguyên quyền admin hiện tại.
+Dự án đã chạy schema.sql và 002_admin.sql: chỉ chạy [mã SQL cập nhật](supabase/migrations/003_employee_accounts.sql) trong SQL Editor. Mở mã trên GitHub rồi sao chép, không cần tải file SQL về điện thoại. Không chạy lại các file cũ. Giữ nguyên quyền admin hiện tại.
 
 ### Triển khai dịch vụ tạo tài khoản
 
 Ưu tiên kết nối Supabase trong ChatGPT để hỗ trợ triển khai. Nếu tự làm trên điện thoại:
 1. Supabase → Edge Functions → Deploy a new function → Via Editor.
 2. Tạo function tên chính xác **admin-employees**.
-3. Dán bản một file trong **admin-employees-deploy.txt** vào index.ts và Deploy.
+3. Dán bản một file trong [mã server dạng văn bản](admin-employees-deploy.txt) vào index.ts và Deploy.
 4. Trong phần cấu hình function, tắt kiểm tra JWT kiểu legacy của gateway (Verify JWT). Hàm tự xác minh user JWT bằng Supabase Auth và kiểm tra admin còn hoạt động cho mỗi yêu cầu. Không bỏ đoạn xác minh trong hàm.
 5. Dùng app 0.3 → Nhân viên → Thêm nhân viên. Tạo tài khoản thử của bạn, đăng nhập và kiểm tra trước khi cấp cho người khác.
 
