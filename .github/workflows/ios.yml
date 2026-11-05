@@ -1,0 +1,61 @@
+name: iOS Unsigned IPA
+on:
+  push:
+    branches: [feature/flutter-supabase]
+    paths: ['mobile/**', 'tool/prepare_ios.sh', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Prepare iOS project
+        run: bash tool/prepare_ios.sh "$RUNNER_TEMP/cham_cong_ios"
+      - name: Analyze and test
+        working-directory: ${{ runner.temp }}/cham_cong_ios
+        run: |
+          flutter analyze
+          flutter test
+      - name: Build iPhone release without signing
+        working-directory: ${{ runner.temp }}/cham_cong_ios
+        run: flutter build ios --release --no-codesign --build-number="$GITHUB_RUN_NUMBER"
+      - name: Package and verify unsigned IPA
+        env:
+          APP_PATH: ${{ runner.temp }}/cham_cong_ios/build/ios/iphoneos/Runner.app
+          PACKAGE_PATH: ${{ runner.temp }}/ios-package
+          ARTIFACT_PATH: ${{ runner.temp }}/ios-artifacts
+        run: |
+          test -f "$APP_PATH/Runner"
+          lipo -verify_arch arm64 "$APP_PATH/Runner"
+          mkdir -p "$PACKAGE_PATH/Payload" "$ARTIFACT_PATH"
+          ditto "$APP_PATH" "$PACKAGE_PATH/Payload/Runner.app"
+          ditto -c -k --keepParent "$PACKAGE_PATH/Payload" "$ARTIFACT_PATH/ChamCong-unsigned.ipa"
+          python3 - <<'PY'
+          import os, plistlib, zipfile
+          from pathlib import Path
+          artifact = Path(os.environ['ARTIFACT_PATH']) / 'ChamCong-unsigned.ipa'
+          with zipfile.ZipFile(artifact) as z:
+              assert z.testzip() is None
+              info = plistlib.loads(z.read('Payload/Runner.app/Info.plist'))
+              assert info['CFBundleIdentifier'] == 'com.wusdev.chamcong'
+              assert info['MinimumOSVersion'] == '15.0'
+              assert 'Payload/Runner.app/Runner' in z.namelist()
+              print('IPA verified:', info['CFBundleIdentifier'], info['MinimumOSVersion'])
+          PY
+          cp IOS_SIGNING.md "$ARTIFACT_PATH/READ-ME.txt"
+          shasum -a 256 "$ARTIFACT_PATH/ChamCong-unsigned.ipa" > "$ARTIFACT_PATH/SHA256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cham-cong-ios-unsigned
+          path: ${{ runner.temp }}/ios-artifacts/
+          retention-days: 14
