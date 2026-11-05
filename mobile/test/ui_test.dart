@@ -15,6 +15,8 @@ void main(){
   if(const bool.fromEnvironment('CAPTURE_PREVIEW')){
    final font=FontLoader('PreviewSans')..addFont(Future.value(ByteData.sublistView(await File('/tmp/chamcong-preview.ttf').readAsBytes())));
    await font.load();
+   final icons=FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+   await icons.load();
   }
   await Supabase.initialize(url:'https://test.supabase.co',publishableKey:'test-public-key',httpClient:MockClient((r)async{
    Object value=[];
@@ -30,7 +32,7 @@ void main(){
   tester.view.physicalSize=const Size(360,800);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   final errors=<Object>[];
-  await tester.pumpWidget(MaterialApp(theme:appTheme().copyWith(textTheme:appTheme().textTheme.apply(fontFamily:const bool.fromEnvironment('CAPTURE_PREVIEW')?'PreviewSans':null)),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:TextScaler.linear(1.2)),child:w!),home:AdminPage(onLoadError:errors.add)));
+  await tester.pumpWidget(MaterialApp(theme:appTheme(fontFamily:const bool.fromEnvironment('CAPTURE_PREVIEW')?'PreviewSans':null),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:TextScaler.linear(1.2)),child:w!),home:AdminPage(onLoadError:errors.add)));
   await tester.pumpAndSettle();expect(tester.takeException(),isNull);
   expect(errors,isEmpty,reason:'$errors');
   expect(find.textContaining('Không thực hiện được'),findsNothing);

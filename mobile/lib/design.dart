@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 const brand=Color(0xFF2563EB);
 const textPrimary=Color(0xFF152744);
 const textMuted=Color(0xFF6E7D94);
-ThemeData appTheme()=>ThemeData(
+ThemeData appTheme({String? fontFamily})=>ThemeData(
+ fontFamily:fontFamily,
  useMaterial3:true, brightness:Brightness.light,
  colorScheme:ColorScheme.fromSeed(seedColor:brand,brightness:Brightness.light),
  scaffoldBackgroundColor:const Color(0xFFF3F6FC),
- appBarTheme:const AppBarTheme(backgroundColor:Color(0xFFF3F6FC),foregroundColor:textPrimary,centerTitle:false,scrolledUnderElevation:0,titleTextStyle:TextStyle(fontSize:21,fontWeight:FontWeight.w800,color:textPrimary)),
+ appBarTheme:AppBarTheme(backgroundColor:Color(0xFFF3F6FC),foregroundColor:textPrimary,centerTitle:false,scrolledUnderElevation:0,titleTextStyle:TextStyle(fontFamily:fontFamily,fontSize:21,fontWeight:FontWeight.w800,color:textPrimary)),
  cardTheme:CardThemeData(color:Colors.white,elevation:0,margin:const EdgeInsets.symmetric(vertical:6),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20),side:const BorderSide(color:Color(0xFFE6ECF5)))),
  textTheme:const TextTheme(bodyMedium:TextStyle(color:textPrimary,fontSize:14,height:1.45),bodyLarge:TextStyle(color:textPrimary,fontSize:16,height:1.4),titleMedium:TextStyle(color:textPrimary,fontSize:16,fontWeight:FontWeight.w700),titleLarge:TextStyle(color:textPrimary,fontSize:21,fontWeight:FontWeight.w800),headlineSmall:TextStyle(color:textPrimary,fontSize:25,fontWeight:FontWeight.w800)),
  inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:Colors.white,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:16),border:OutlineInputBorder(borderRadius:BorderRadius.circular(14),borderSide:const BorderSide(color:Color(0xFFDCE4F0))),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(14),borderSide:const BorderSide(color:Color(0xFFDCE4F0)))),
@@ -28,7 +29,7 @@ class MetricGrid extends StatelessWidget{
  @override Widget build(BuildContext context)=>LayoutBuilder(builder:(context,c){
   final columns=c.maxWidth>650?4:2;
   final width=(c.maxWidth-(columns-1)*12)/columns;
-  return Wrap(spacing:12,runSpacing:12,children:items.map((m)=>SizedBox(width:width,child:Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFFE6ECF5))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Container(padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:m.color.withValues(alpha:0.10),borderRadius:BorderRadius.circular(12)),child:Icon(m.icon,color:m.color,size:22)),const SizedBox(height:14),Text(m.value,style:const TextStyle(fontSize:24,fontWeight:FontWeight.w800,color:textPrimary)),const SizedBox(height:4),Text(m.label,style:const TextStyle(color:textMuted,fontSize:12,fontWeight:FontWeight.w600))])))).toList());
+  return Wrap(spacing:12,runSpacing:12,children:items.map((m)=>SizedBox(width:width,child:Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFFE6ECF5))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Container(padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:m.color.withValues(alpha:0.10),borderRadius:BorderRadius.circular(12)),child:Icon(m.icon,color:m.color,size:22)),const SizedBox(height:14),Text(m.value,style:const TextStyle(fontSize:24,fontWeight:FontWeight.w800,color:textPrimary)),const SizedBox(height:4),SizedBox(height:42,child:Text(m.label,maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(color:textMuted,fontSize:12,fontWeight:FontWeight.w600)))])))).toList());
  });
 }
 class SectionTitle extends StatelessWidget{
