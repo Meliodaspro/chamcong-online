@@ -349,10 +349,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final data = _data;
     return Scaffold(
       appBar: AppBar(title: const Text('Chấm Công'), actions: [
-        IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const PasswordPage())), tooltip: 'Đổi mật khẩu', icon: const Icon(Icons.manage_accounts_outlined)),
-        IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const RequestsPage())), tooltip: 'Yêu cầu sửa công', icon: const Icon(Icons.edit_calendar)),
         IconButton(onPressed: _busy || _loading ? null : _load, tooltip: 'Tải lại', icon: const Icon(Icons.refresh)),
-        IconButton(onPressed: _busy ? null : _logout, tooltip: 'Đăng xuất', icon: const Icon(Icons.logout)),
+        PopupMenuButton<String>(enabled: !_busy, onSelected: (value) {
+          if (value == 'requests') {
+            Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const RequestsPage()));
+          } else if (value == 'password') {
+            Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const PasswordPage()));
+          } else {
+            _logout();
+          }
+        }, itemBuilder: (_) => const [
+          PopupMenuItem(value: 'requests', child: Text('Yêu cầu sửa công')),
+          PopupMenuItem(value: 'password', child: Text('Đổi mật khẩu')),
+          PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
+        ]),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab,
         onDestinationSelected: (value) => setState(() => _tab = value),
@@ -380,7 +390,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.verified_user_outlined, color: teal),
               title: Text('Đồng bộ trực tuyến'), subtitle: Text('Chỉ báo thành công khi server đã ghi nhận. Mỗi ngày một ca; hỗ trợ ra ca qua đêm.')),
             const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.info_outline),
-              title: Text('Chấm Công 0.3'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, gửi yêu cầu sửa công qua biểu tượng lịch ở trên.')),
+              title: Text('Chấm Công 0.3'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, gửi yêu cầu sửa công trong menu ở góc trên.')),
           ],
           if (data != null && _tab == 1) ...[
             Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _busy || _loading ? null : _exportPersonal, icon: const Icon(Icons.ios_share), label: const Text('Xuất bảng công'))),
