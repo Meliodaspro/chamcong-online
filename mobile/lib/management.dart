@@ -1,6 +1,7 @@
 // ignore_for_file: curly_braces_in_flow_control_structures
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:excel/excel.dart' as xls;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart' show Share;
 import 'package:cross_file/cross_file.dart';
@@ -39,7 +40,8 @@ class _RoleGateState extends State<RoleGate> {
 }
 
 class AdminPage extends StatefulWidget {
- const AdminPage({super.key});
+ const AdminPage({this.onLoadError,super.key});
+ final void Function(Object)? onLoadError;
  @override State<AdminPage> createState()=>_AdminPageState();
 }
 class _AdminPageState extends State<AdminPage> {
@@ -74,7 +76,7 @@ class _AdminPageState extends State<AdminPage> {
    final today=await db.from('attendance_sessions').select().eq('work_date',dateKey(DateTime.now())).order('check_in',ascending:false);
    final a=await db.from('admin_audit').select().order('id',ascending:false).limit(100);
    if(mounted)setState((){people=p;rows=r;requests=req;audit=a;todayRows=today;});
-  }catch(e){if(mounted)setState((){error=managementError(e);people=[];rows=[];requests=[];audit=[];});}
+  }catch(e){widget.onLoadError?.call(e);if(mounted)setState((){error=managementError(e);people=[];rows=[];requests=[];audit=[];});}
   finally{if(mounted)setState(()=>busy=false);}
  }
  String name(dynamic id)=>people.where((p)=>p['id']==id).map((p)=>p['display_name'] as String).firstOrNull??'Nhân viên';
@@ -96,9 +98,7 @@ class _AdminPageState extends State<AdminPage> {
   if(ok==true)await act(()async{await db.rpc('update_employee',params:{'p_id':p['id'],'p_name':c[0],'p_code':c[1],'p_phone':c[2],'p_position':c[3],'p_active':active,'p_role':role});});
  }
  Future<void> export() async {
-  final csv=reportCsv(filtered, {for(final p in people) p['id'] as String:p['display_name'] as String});
-  final box=context.findRenderObject() as RenderBox?;
-  await Share.shareXFiles([XFile.fromData(Uint8List.fromList(utf8.encode('\uFEFF$csv')),mimeType:'text/csv',name:'bang-cong-${monthKey(month)}.csv')],sharePositionOrigin:box==null?null:box.localToGlobal(Offset.zero)&box.size);
+  await shareAttendanceReport(context,filtered,{for(final p in people)p['id'] as String:p['display_name'] as String},'bang-cong-${monthKey(month)}');
  }
  @override Widget build(BuildContext context)=>Scaffold(
  appBar:AppBar(title:Text(['Tổng quan','Nhân viên','Bảng công','Phê duyệt'][tab]),actions:[IconButton(onPressed:busy?null:load,tooltip:'Tải lại',icon:const Icon(Icons.refresh_rounded)),PopupMenuButton<String>(onSelected:(v){if(v=='personal'){Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>const HomePage()));}else if(v=='password'){Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>const PasswordPage()));}else if(v=='audit'){showAudit();}else{db.auth.signOut(scope:SignOutScope.local);}},itemBuilder:(_)=>const [PopupMenuItem(value:'personal',child:Text('Chấm công cá nhân')),PopupMenuItem(value:'password',child:Text('Đổi mật khẩu')),PopupMenuItem(value:'audit',child:Text('Lịch sử quản trị')),PopupMenuItem(value:'logout',child:Text('Đăng xuất'))])]),
@@ -166,6 +166,20 @@ String reportCsv(List<Map<String,dynamic>> rows,Map<String,String> names)=>[
  ['Nhân viên','Ngày','Giờ vào (VN)','Giờ ra (VN)','Phút làm','Trạng thái'].map(csvCell).join(','),
  for(final r in rows) [names[r['user_id']]??'',r['work_date'],vietnamTime(DateTime.parse(r['check_in'])).toString().substring(0,16),r['check_out']==null?'':vietnamTime(DateTime.parse(r['check_out'])).toString().substring(0,16),Attendance.fromJson(r).completedDuration.inMinutes,r['check_out']==null?'Chưa ra':'Hoàn tất'].map(csvCell).join(',')
 ].join('\r\n');
+List<int> reportXlsx(List<Map<String,dynamic>> rows,Map<String,String> names){
+ final book=xls.Excel.createExcel();book.rename('Sheet1','Bảng công');final sheet=book['Bảng công'];
+ sheet.appendRow(['Nhân viên','Ngày','Giờ vào (VN)','Giờ ra (VN)','Phút làm','Trạng thái'].map(xls.TextCellValue.new).toList());
+ for(final r in rows){final a=Attendance.fromJson(r);sheet.appendRow([xls.TextCellValue(names[r['user_id']]??''),xls.TextCellValue(shortDate(a.workDate)),xls.TextCellValue(vietnamTime(a.checkIn).toString().substring(0,16)),xls.TextCellValue(a.checkOut==null?'':vietnamTime(a.checkOut!).toString().substring(0,16)),xls.IntCellValue(a.completedDuration.inMinutes),xls.TextCellValue(a.checkOut==null?'Chưa ra':'Hoàn tất')]);}
+ for(var i=0;i<6;i++){sheet.setColumnWidth(i,i==0?28:22);sheet.cell(xls.CellIndex.indexByColumnRow(columnIndex:i,rowIndex:0)).cellStyle=xls.CellStyle(bold:true,fontSize:12);}
+ return book.encode()!;
+}
+Future<void> shareAttendanceReport(BuildContext context,List<Map<String,dynamic>> rows,Map<String,String> names,String filename)async{
+ final format=await showDialog<String>(context:context,builder:(ctx)=>SimpleDialog(title:const Text('Định dạng báo cáo'),children:[SimpleDialogOption(onPressed:()=>Navigator.pop(ctx,'xlsx'),child:const ListTile(leading:Icon(Icons.table_view),title:Text('Excel (.xlsx)'),subtitle:Text('Bảng có tiêu đề, số giờ và độ rộng cột'))),SimpleDialogOption(onPressed:()=>Navigator.pop(ctx,'csv'),child:const ListTile(leading:Icon(Icons.description_outlined),title:Text('CSV (.csv)'),subtitle:Text('Dữ liệu UTF-8 để nhập vào phần mềm khác')))]));
+ if(format==null||!context.mounted)return;
+ final bytes=format=='xlsx'?reportXlsx(rows,names):utf8.encode('\uFEFF${reportCsv(rows,names)}');
+ final box=context.findRenderObject() as RenderBox?;
+ await Share.shareXFiles([XFile.fromData(Uint8List.fromList(bytes),mimeType:format=='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv',name:'$filename.$format')],sharePositionOrigin:box==null?null:box.localToGlobal(Offset.zero)&box.size);
+}
 Future<void> editAttendance(BuildContext context,{required List<Map<String,dynamic>> people,Map<String,dynamic>? record,required Future<void> Function() onSave,bool request=false}) async {
  final saved=await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>AttendanceEditor(people:people,record:record,request:request)));
  if(saved==true)await onSave();

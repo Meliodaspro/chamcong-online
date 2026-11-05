@@ -332,6 +332,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try { await _client.auth.signOut(scope: SignOutScope.local); }
     catch (_) { if (mounted) setState(() => _error = 'Chưa đăng xuất được. Vui lòng thử lại.'); }
   }
+  Future<void> _exportPersonal() async {
+    final data=_data;if(data==null)return;
+    try{
+      final id=_client.auth.currentUser!.id;
+      await shareAttendanceReport(context,[for(final r in data.records){'id':r.id,'user_id':id,'work_date':r.workDate,'check_in':r.checkIn.toIso8601String(),'check_out':r.checkOut?.toIso8601String()}],{id:data.name},'cong-ca-nhan-${monthKey(_month)}');
+    }catch(_){if(mounted)setState(()=>_error='Chưa xuất được báo cáo. Vui lòng thử lại.');}
+  }
   void _moveMonth(int delta) {
     if (_busy || _loading) return;
     setState(() => _month = DateTime(_month.year, _month.month + delta));
@@ -376,6 +383,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               title: Text('Chấm Công 0.3'), subtitle: Text('Chưa tính lương, giờ nghỉ, tăng ca hoặc xác minh vị trí. Khi quên chấm, gửi yêu cầu sửa công qua biểu tượng lịch ở trên.')),
           ],
           if (data != null && _tab == 1) ...[
+            Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _busy || _loading ? null : _exportPersonal, icon: const Icon(Icons.ios_share), label: const Text('Xuất bảng công'))),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               IconButton(onPressed: _busy || _loading ? null : () => _moveMonth(-1), icon: const Icon(Icons.chevron_left), tooltip: 'Tháng trước'),
               Text('Tháng ${two(_month.month)}/${_month.year}', style: Theme.of(context).textTheme.titleLarge),

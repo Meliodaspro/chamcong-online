@@ -10,6 +10,7 @@ dependencies:
   supabase_flutter: 2.18.3
   flutter_secure_storage: ^9.2.4
   share_plus: ^10.1.4
+  excel: ^4.0.6
   cross_file: ^0.3.4+2
   shared_preferences: ^2.3.5
 dev_dependencies:

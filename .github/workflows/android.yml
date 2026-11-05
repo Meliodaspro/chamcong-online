@@ -63,6 +63,15 @@ jobs:
         run: |
           flutter analyze
           flutter test
+      - name: Render UI preview with Vietnamese font
+        working-directory: ${{ runner.temp }}/cham_cong
+        run: |
+          curl -fL 'https://raw.githubusercontent.com/google/fonts/main/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf' -o /tmp/chamcong-preview.ttf
+          flutter test test/ui_test.dart --update-goldens --dart-define=CAPTURE_PREVIEW=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cham-cong-ui-preview
+          path: ${{ runner.temp }}/cham_cong/test/previews/
       - name: Build test APK
         working-directory: ${{ runner.temp }}/cham_cong
         run: flutter build apk --debug

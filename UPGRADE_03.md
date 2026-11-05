@@ -7,7 +7,7 @@
 - Mã nhân viên tự sinh từ PostgreSQL dạng NV000001, giữ nguyên mã cũ. Client không sửa được mã.
 - Nhân viên tự đổi mật khẩu; admin đặt lại mật khẩu tài khoản employee. Mật khẩu không lưu trong bảng công hoặc nhật ký.
 - Lọc nhân viên hoạt động/khóa; lọc công đã hoàn tất/thiếu giờ ra; xem lịch sử yêu cầu duyệt/từ chối.
-- Chọn ngày, giờ bằng hộp chọn trên điện thoại; CSV chia sẻ theo bộ lọc đang xem.
+- Chọn ngày, giờ bằng hộp chọn trên điện thoại; Xuất Excel (.xlsx) và CSV theo bộ lọc đang xem; nhân viên cũng xuất được công cá nhân.
 
 ## Cập nhật Supabase một lần
 
