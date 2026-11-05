@@ -20,7 +20,7 @@ void main(){
    Object value=[];
    if(r.url.path.endsWith('/is_admin')){value=true;}
    if(r.url.path.endsWith('/profiles')){value=[{'id':'user','display_name':'Nguyễn Ngọc Sơn','employee_code':'NV000001','role':'admin','is_active':true,'phone':'','position':'Quản lý'}];}
-   return http.Response(jsonEncode(value),200,headers:{'content-type':'application/json; charset=utf-8'});
+   return http.Response(jsonEncode(value),200,request:r,headers:{'content-type':'application/json; charset=utf-8'});
   }));
   await Supabase.instance.client.rpc('is_admin');
   await Supabase.instance.client.from('profiles').select();
