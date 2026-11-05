@@ -1,4 +1,7 @@
 begin;
+alter table public.profiles add column if not exists email text not null default '';
+update public.profiles p set email=coalesce(u.email,'') from auth.users u where u.id=p.id;
+
 create sequence public.employee_number_seq;
 revoke all on sequence public.employee_number_seq from public,anon,authenticated;
 create function public.next_employee_code() returns text
@@ -37,5 +40,12 @@ begin
  select * into strict old_row from public.profiles where id=p_id for update;
  update public.profiles set display_name=trim(p_name),phone=left(coalesce(p_phone,''),100),position=left(coalesce(p_position,''),100),is_active=p_active,role=p_role where id=p_id returning * into new_row;
  insert into public.admin_audit(actor_id,action,target_id,before_value,after_value) values(auth.uid(),'employee_update',p_id,to_jsonb(old_row),to_jsonb(new_row));
+end; $$;
+create or replace function public.create_employee_profile() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+ insert into public.profiles(id,display_name,email)
+ values(new.id,left(coalesce(nullif(trim(new.raw_user_meta_data->>'display_name'),''),'Nhân viên'),100),coalesce(new.email,''));
+ return new;
 end; $$;
 commit;
