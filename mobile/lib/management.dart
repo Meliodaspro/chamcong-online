@@ -68,7 +68,9 @@ class _AdminPageState extends State<AdminPage> {
    if(await db.rpc('is_admin')!=true) throw Exception('ADMIN_REQUIRED');
    final p=await allRows('profiles','id');
    final r=await allRows('attendance_sessions','id',start:monthKey(month),end:monthKey(DateTime(month.year,month.month+1)));
-   final req=await db.from('correction_requests').select().order('created_at',ascending:false).limit(100);
+   final history=await db.from('correction_requests').select().neq('status','pending').order('created_at',ascending:false).limit(100);
+   final pending=await db.from('correction_requests').select().eq('status','pending').order('created_at');
+   final req=[...pending,...history];
    final today=await db.from('attendance_sessions').select().eq('work_date',dateKey(DateTime.now())).order('check_in',ascending:false);
    final a=await db.from('admin_audit').select().order('id',ascending:false).limit(100);
    if(mounted)setState((){people=p;rows=r;requests=req;audit=a;todayRows=today;});
@@ -144,7 +146,7 @@ class _AdminPageState extends State<AdminPage> {
  if(!requests.any((r)=>requestFilter=='all'||r['status']==requestFilter))const EmptyPanel('Không có yêu cầu trong mục này.'),
  for(final r in requests.where((r)=>requestFilter=='all'||r['status']==requestFilter))Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text(name(r['user_id']),style:const TextStyle(fontWeight:FontWeight.w800))),StatusPill(requestLabel(r['status']),color:requestColor(r['status']))]),const SizedBox(height:12),Text('${shortDate(r['work_date'])} · ${clockLabel(DateTime.parse(r['check_in']))} → ${clockLabel(r['check_out']==null?null:DateTime.parse(r['check_out']))}',style:const TextStyle(fontWeight:FontWeight.w600)),const SizedBox(height:8),Text(r['reason'],style:const TextStyle(color:textMuted)),if(r['status']=='pending')...[
  const Divider(height:28),Row(children:[Expanded(child:OutlinedButton(onPressed:busy?null:()=>review(r,false),child:const Text('Từ chối'))),const SizedBox(width:12),Expanded(child:FilledButton(onPressed:busy?null:()=>review(r,true),child:const Text('Duyệt công')))]),
- ]]))),const Padding(padding:EdgeInsets.only(top:16),child:Text('Hiển thị 100 yêu cầu gần nhất.',style:TextStyle(color:textMuted,fontSize:12))),
+ ]]))),const Padding(padding:EdgeInsets.only(top:16),child:Text('Hiển thị yêu cầu chờ duyệt và 100 yêu cầu đã xử lý gần nhất.',style:TextStyle(color:textMuted,fontSize:12))),
  ];
  Future<void> createAccount()async{final saved=await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>const AccountPage()));if(saved==true&&mounted)await load();}
  Future<void> resetPassword(Map<String,dynamic> p)async{await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>AccountPage(employee:p)));if(mounted)await load();}
